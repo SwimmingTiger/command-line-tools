@@ -9,7 +9,7 @@
 #                  5 个 ohos 平台组件; 文件缺失且设了 OHOS_SDK_URL 时自动下载)
 #   NODE_TAR_XZ  - node-v24.14.1-openharmony-arm64.tar.xz (替换 x64 node)
 # 输出:
-#   DEST         - 合成结果 (默认 $SCRIPT_DIR/output/command-line-tools)
+#   DEST         - 合成结果 (默认 ./output/command-line-tools)
 #   FORCE=1      - 目标已存在时覆盖 (默认拒绝, 防止误删正在使用的工具树)
 #   STAGE        - 中间目录 (默认 $DEST.stage, 与 DEST 同盘; 完成自动删除)
 #   LOG          - 日志文件 (默认 ./output/build.log)
@@ -42,14 +42,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="$SCRIPT_DIR/output"
 
 DOWNLOADS="${DOWNLOADS:-$SCRIPT_DIR/Downloads}"
 LINUX_ZIP="${LINUX_ZIP:-$DOWNLOADS/commandline-tools-linux-x64-26.0.0.621.zip}"
 OHOS_SDK_TAR="${OHOS_SDK_TAR:-$DOWNLOADS/version-Master_Version-ohos-sdk-public_ohos-20260330_020501-ohos-sdk-public_ohos.tar.gz}"
 OHOS_SDK_URL="${OHOS_SDK_URL:-https://cidownload.openharmony.cn/version/Master_Version/ohos-sdk-public_ohos/20260330_020501/version-Master_Version-ohos-sdk-public_ohos-20260330_020501-ohos-sdk-public_ohos.tar.gz}"
 NODE_TAR_XZ="${NODE_TAR_XZ:-$DOWNLOADS/node-v24.14.1-openharmony-arm64.tar.xz}"
-DEST="${DEST:-$SCRIPT_DIR/output/command-line-tools}"
-STAGE="${STAGE:-$SCRIPT_DIR/output/command-line-tools.stage}"
+DEST="${DEST:-$BUILD_DIR/command-line-tools}"
+STAGE="${STAGE:-$BUILD_DIR/command-line-tools.stage}"
 FORCE="${FORCE:-0}"
 
 LINUX_VERSION="26.0.0.621"
@@ -57,7 +58,7 @@ NODE_VERSION="24.14.1"
 OHOS_VERSION=""   # 在步骤 2 中从组件 zip 文件名自动探测
 
 STUB_DIR="$SCRIPT_DIR/stubs"
-LOG="${LOG:-$SCRIPT_DIR/output/build.log}"
+LOG="${LOG:-$BUILD_DIR/build.log}"
 
 # binary-sign-tool / llvm-objcopy / ohos-sign-elf 所在目录
 export PATH="/storage/Users/currentUser/.harmonybrew/bin:/storage/Users/currentUser/.local/bin:$PATH"
@@ -87,6 +88,24 @@ fi
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 TOOLS="$STAGE/command-line-tools"
+
+# workaround with brew bash + cat and cp issue
+# brew cat 会导致 cat: -: Broken pipe 报错，详见: https://atomgit.com/org/Harmonybrew/discussions/6
+# brew cp 曾导致 WineHua 的 libffi.so.8 复制失败并得到损坏的文件，报错如下：
+# cp: error deallocating '……/WineHua/entry/libs/arm64-v8a/libffi.so.8': Permission denied
+# 并且报错后cp依然以状态码0退出，所以编译不会失败，但最终复制的 so 库会被截断。
+# 虽然本项目可能不会出现该问题，但最好避免使用 brew cp。
+CAT_PATH="$(command -v cat)"
+CP_PATH="$(command -v cp)"
+if [ "$CAT_PATH" = "$(brew --prefix)/bin/cat" ] || [ "$CP_PATH" = "$(brew --prefix)/bin/cp" ]; then
+    echo "调整 PATH 让系统 cat 和 cp 命令优先级更高，避免 brew 的 cat 和 cp 命令导致编译失败"
+    set -x
+    mkdir -p "$BUILD_DIR/ohos-bin"
+    ln -sf /usr/bin/cat "$BUILD_DIR/ohos-bin/"
+    ln -sf /usr/bin/cp "$BUILD_DIR/ohos-bin/"
+    export PATH="$BUILD_DIR/ohos-bin:$PATH"
+    { set +x; } 2>/dev/null
+fi
 
 # ---------------- 1. 解压 linux 基础工具 ----------------
 log "==> 1/10 解压 linux command-line-tools ($LINUX_VERSION)"
