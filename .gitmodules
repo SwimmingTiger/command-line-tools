@@ -1,0 +1,3 @@
+[submodule "ohos-bst-light"]
+	path = ohos-bst-light
+	url = https://github.com/SwimmingTiger/ohos-bst-light.git
