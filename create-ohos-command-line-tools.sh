@@ -10,7 +10,6 @@
 # 输出:
 #   DEST         - 合成结果 (默认 $SCRIPT_DIR/output/command-line-tools)
 #   FORCE=1      - 目标已存在时覆盖 (默认拒绝, 防止误删正在使用的工具树)
-#   LINK_WINE=1  - 额外创建 /storage/Users/currentUser/work/wine/command-line-tools 符号链接
 #   STAGE        - 中间目录 (默认 $DEST.stage, 与 DEST 同盘; 完成自动删除)
 #   LOG          - 日志文件 (默认 ./output/build.log)
 #
@@ -44,7 +43,6 @@ NODE_TAR_XZ="${NODE_TAR_XZ:-$DOWNLOADS/node-v24.14.1-openharmony-arm64.tar.xz}"
 DEST="${DEST:-$SCRIPT_DIR/output/command-line-tools}"
 STAGE="${STAGE:-$SCRIPT_DIR/output/command-line-tools.stage}"
 FORCE="${FORCE:-0}"
-LINK_WINE="${LINK_WINE:-0}"
 
 OHOS_VERSION="26.0.0.38"
 LINUX_VERSION="26.0.0.621"
@@ -268,10 +266,5 @@ if [ -e "$DEST" ]; then
     rm -rf "$DEST"
 fi
 mv "$TOOLS" "$DEST"
-if [ "$LINK_WINE" = "1" ]; then
-    WINE_LINK="/storage/Users/currentUser/work/wine/command-line-tools"
-    ln -sfn "$DEST" "$WINE_LINK"
-    log "已创建符号链接: $WINE_LINK -> $DEST"
-fi
 rm -rf "$STAGE"
 log "完成: $DEST"

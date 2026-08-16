@@ -74,11 +74,11 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 ## 用法
 
 ```bash
-# 默认输出到 /data/storage/el2/base/files/command-line-tools (已存在则需 FORCE=1)
+# 默认输出到 $SCRIPT_DIR/output/command-line-tools (经 output -> /data/storage/el2/base/files/cmdtools 符号链接落在 f2fs; 已存在则需 FORCE=1)
 bash /storage/Users/currentUser/work/hmos/command-line-tools/create-ohos-command-line-tools.sh
 
-# 覆盖现有工具树 + 更新 wine 符号链接
-FORCE=1 LINK_WINE=1 bash .../create-ohos-command-line-tools.sh
+# 覆盖现有工具树
+FORCE=1 bash .../create-ohos-command-line-tools.sh
 
 # 自定义输入/输出
 LINUX_ZIP=... OHOS_SDK_TAR=... NODE_TAR_XZ=... \
