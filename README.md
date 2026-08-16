@@ -7,9 +7,10 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 
 | 文件 | 说明 |
 |---|---|
-| `create-ohos-command-line-tools.sh` | 一键合成脚本（9 步，见下） |
+| `create-ohos-command-line-tools.sh` | 一键合成脚本（12 步，见下） |
 | `stubs/hms_stub.c` | hms 图像库 stub 源码（导出与真实库同名符号） |
-| `stubs/build-stubs.sh` | stub 编译脚本（被主脚本第 8 步调用） |
+| `stubs/build-stubs.sh` | stub 编译脚本（被主脚本第 10 步调用） |
+| `ohos-chmod-x64-elf.py` | 扫描 x86-64 ELF 可执行文件并取消执行权限（由 `~/work/ohos-script/ohos-replace-x64-elf.py` 复制改造：保留多线程扫描与 `--dry-run`/`--restore`，替换逻辑改为 `chmod -x`；被主脚本第 12 步调用） |
 
 ## 输入（放在 `./Downloads/`）
 
@@ -103,6 +104,15 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
     libxml2→libxml2.so.2.14.0）。md5 不同的对跳过（如 libLTO.so 与
     libLTO.so.15 内容不同、OpenMP `.bc` 位码同大小不同内容，均不处理）。
     `ld.lld` 不在此表，由第 8 步包装脚本处理。llvm 体积从约 3.5G 降至 2.5G。
+11. **扫描 x86-64 ELF 可执行文件并取消执行权限**：基底残留的 x64 主机工具
+    （glslang_validator/idl/hnpcli/ccmake/Previewer/cppaudit 等）在设备上
+    无法运行，取消执行权限避免被误调用。由仓库内 `ohos-chmod-x64-elf.py`
+    执行——它是 `~/work/ohos-script/ohos-replace-x64-elf.py` 的复制改造版：
+    **保留原脚本的多线程扫描**（`_ScanTracker` + 扫描/处理双线程池，最多
+    8 线程，92k 文件约 17 秒）与 `--dry-run`/`--restore` 参数，仅把"替换为
+    符号链接"改为 `chmod -x`（`--restore` 则 `chmod +x` 还原）。检测：
+    64 位 ELF + `e_machine==EM_X86_64`(62) + 程序头含 `PT_INTERP`（区分
+    PIE 可执行与共享库）。当前树命中 27 个，aarch64 工具不受影响。
 
 ## 用法
 

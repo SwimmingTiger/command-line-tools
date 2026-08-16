@@ -29,6 +29,7 @@
 #   9. 批量签名全部 aarch64 ELF (ohos-sign-elf), 并校验签名/完整性
 #   10. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要)
 #   11. 校验
+#   12. 扫描 x86-64 ELF 可执行文件并取消执行权限 (基底残留 x64 工具, 防止误调用)
 #   交付: 移动 $DEST, 清理 STAGE
 #
 # 所有压缩包统一采用"覆盖解压"策略: 直接解压到目标目录, 同名文件被覆盖,
@@ -338,6 +339,15 @@ if missing_sign or truncated:
     sys.exit(1)
 print("校验通过: 所有 aarch64 可执行/动态库均已签名且完整")
 PY
+
+# ---------------- 12. 扫描 x86-64 ELF 可执行文件并取消执行权限 ----------------
+# 基底残留的 x64 主机工具在设备上无法运行 (Exec format error), 取消执行权限
+# 避免被误调用。调用 ohos-chmod-x64-elf.py (由 ohos-replace-x64-elf.py 复制改造,
+# 保留其多线程扫描与 --dry-run/--restore 逻辑; 检测: 64 位 ELF + EM_X86_64 + PT_INTERP)。
+log "==> 12/12 扫描 x86-64 ELF 可执行文件并取消执行权限"
+X64_UNEXEC_ELF="${X64_UNEXEC_ELF:-$SCRIPT_DIR/ohos-chmod-x64-elf.py}"
+[ -f "$X64_UNEXEC_ELF" ] || die "缺少 $X64_UNEXEC_ELF"
+python3 "$X64_UNEXEC_ELF" "$TOOLS" | tee -a "$LOG"
 
 # ---------------- 交付 ----------------
 log "==> 交付: $DEST"
