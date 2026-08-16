@@ -59,6 +59,16 @@ def is_elf(filepath: str) -> bool:
     return magic == b"\x7fELF"
 
 
+def is_object_file(filepath: str) -> bool:
+    """目标文件 (.o) 一律不签名。
+
+    SDK 自带的链接输入 (Scrt1.o/crti.o/crtn.o/clang_rt.crtbegin.o 等) 若带
+    .codesign, lld --code-sign 链接时会产出多块签名, 设备内核校验失败
+    (exec 报 Operation not permitted); 未签名的 .o 输入则产出单块签名, 正常。
+    """
+    return filepath.endswith(".o")
+
+
 def unsign_elf(filepath: str) -> None:
     cmd = [
         LLVM_OBJCOPY,
@@ -109,7 +119,7 @@ def walk_and_submit(path: str, sign_executor: concurrent.futures.ThreadPoolExecu
     are available, and submit ELF files to the sign pool."""
     try:
         if os.path.isfile(path):
-            if not os.path.islink(path) and is_elf(path):
+            if not os.path.islink(path) and is_elf(path) and not is_object_file(path):
                 sign_executor.submit(process_file, path, do_unsign, do_sign, dry_run)
             return
         for dirpath, dirnames, filenames in os.walk(path):
@@ -127,6 +137,8 @@ def walk_and_submit(path: str, sign_executor: concurrent.futures.ThreadPoolExecu
             for filename in filenames:
                 filepath = os.path.join(dirpath, filename)
                 if os.path.islink(filepath):
+                    continue
+                if is_object_file(filepath):
                     continue
                 if not is_elf(filepath):
                     continue
@@ -167,7 +179,7 @@ def main() -> None:
     print(f"Scanning and processing with up to {MAX_WORKERS} threads{mode}")
 
     if not os.path.isdir(args.path):
-        if not os.path.islink(args.path) and is_elf(args.path):
+        if not os.path.islink(args.path) and is_elf(args.path) and not is_object_file(args.path):
             process_file(args.path, do_unsign, do_sign, args.dry_run)
         print("Done.")
         return
