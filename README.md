@@ -16,20 +16,24 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 | 文件 | 作用 | 下载地址 |
 |---|---|---|
 | `commandline-tools-linux-x64-26.0.0.621.zip` | 基础（完整版，含 hvigor/ohpm/hstack/codelinter/sdk） | https://developer.huawei.com/consumer/cn/download/command-line-tools-for-hmos |
-| `version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz` | 5 个 **ohos 平台**组件：ets/js/native/previewer/toolchains（26.0.0.38） | https://dcp.openharmony.cn/workbench/cicd/dailybuild/dailylist |
+| `version-Master_Version-ohos-sdk-public_ohos-20260330_020501-ohos-sdk-public_ohos.tar.gz` | 5 个 **ohos 平台**组件：ets/js/native/previewer/toolchains（26.0.0.18-Beta） | https://cidownload.openharmony.cn/version/Master_Version/ohos-sdk-public_ohos/20260330_020501/ |
 | `node-v24.14.1-openharmony-arm64.tar.xz` | openharmony arm64 node，替换自带的 x86-64 node | https://github.com/hqzing/ohos-node/releases/tag/v24.14.1 |
 
 ## 为什么这样做
 
 1. **Linux 版本来就是完整的**：以 linux zip 为基底，不需要 Windows 版补充。
-2. **合并 openharmony 26.0.0.38 组件**：linux 自带 openharmony 是 26.0.0.32
+2. **合并 openharmony 组件（版本自动探测）**：linux 自带 openharmony 是 26.0.0.32
    （Beta2），用更新的 public SDK 组件整体替换 `sdk/default/openharmony/`
    下的 ets/js/native/previewer/toolchains；`hms` 保持 26.0.0.32 不动。
-   ⚠️ **必须使用 `ohos-sdk/ohos/` 下的 `*-ohos-x64-*` 变体**（二进制为
-   aarch64 musl，能在设备上运行）。`ohos-sdk/linux/` 的 `*-linux-x64-*`
-   变体是 x86-64 主机工具（clang-15/restool/hdc 等均为 x86-64 glibc），
-   设备上无法执行，stub 编译会报 "cannot execute binary file: Exec format
-   error"，BiSheng 替换数也会从 35 变成 47（llvm bin 工具集不同）。
+   当前默认使用 **Master 版 `ohos-sdk-public_ohos`**（20260330，组件
+   26.0.0.18-Beta），该 tar 只含 ohos 平台组件（顶层 `ohos/`，二进制均为
+   aarch64 musl）。脚本对两种打包均兼容：master 版（`ohos/`）与旧 daily 版
+   （`ohos-sdk/ohos/`）。⚠️ 若换回 daily 版 tar，必须用 `ohos-sdk/ohos/` 下
+   的 `*-ohos-x64-*` 变体（aarch64 musl）；`ohos-sdk/linux/` 的
+   `*-linux-x64-*` 变体是 x86-64 主机工具（clang-15/restool/hdc 等均为
+   x86-64 glibc），设备上无法执行，stub 编译会报 "cannot execute binary
+   file: Exec format error"，BiSheng 替换数也会从 35 变成 47（llvm bin
+   工具集不同）。
 3. **替换 tool/node**：自带 node 是 x86-64 ELF（动态链接 glibc），在设备上
    无法运行；换成 openharmony 官方 arm64 musl node v24.14.1 后，
    `bin/hvigorw`（原版，自动设置 `DEVECO_NODE_HOME=$all_tool_dir/tool/node`）
@@ -97,7 +101,7 @@ bash .../create-ohos-command-line-tools.sh
 ## 预期结果
 
 - 大小约 6.6 GB；`tool/node/bin/node --version` → `v24.14.1`；
-- openharmony 组件 `oh-uni-package.json` 版本均为 `26.0.0.38`；
+- openharmony 组件 `oh-uni-package.json` 版本均为 `26.0.0.18`（Master 20260330）；
 - hvigor 版本 6.26.2，ohpm 26.0.0.410，codelinter 6.0.240（来自 linux 基底）；
 - BiSheng/bin 中 35 个工具为指向 openharmony llvm 的相对符号链接；
 - hms/toolchains/lib 下 6 个 stub 为 aarch64 musl、带 SONAME、已签名。

@@ -5,7 +5,8 @@
 #
 # 输入 (可用环境变量覆盖):
 #   LINUX_ZIP    - commandline-tools-linux-x64-26.0.0.621.zip (基础, 完整版)
-#   OHOS_SDK_TAR - OpenHarmony_7.0.0.38 ohos-sdk-public tar.gz (5 个 ohos 平台组件)
+#   OHOS_SDK_TAR - ohos-sdk-public_ohos tar.gz (Master 20260330, 组件 26.0.0.18-Beta,
+#                  5 个 ohos 平台组件; 文件缺失且设了 OHOS_SDK_URL 时自动下载)
 #   NODE_TAR_XZ  - node-v24.14.1-openharmony-arm64.tar.xz (替换 x64 node)
 # 输出:
 #   DEST         - 合成结果 (默认 $SCRIPT_DIR/output/command-line-tools)
@@ -15,11 +16,10 @@
 #
 # 步骤:
 #   1. 解压 linux 工具 (基础)
-#   2. 解压 ohos-sdk-public, 3. 解压 arm64 node
-#       (注意: 组件必须用 ohos-sdk/ohos/ 下的 *-ohos-x64-* 变体,
-#        其内二进制为 aarch64 musl; ohos-sdk/linux/ 变体是 x86-64 主机工具,
-#        在设备上无法执行)
-#   4. 合并 openharmony 26.0.0.38 组件 (ets/js/native/previewer/toolchains)
+#   2. 解压 ohos-sdk-public_ohos (Master), 3. 解压 arm64 node
+#       (注意: 组件必须用 *-ohos-x64-* 变体, 其内二进制为 aarch64 musl;
+#        master 版 tar 顶层为 ohos/, 旧 daily 版为 ohos-sdk/ohos/, 脚本自动兼容)
+#   4. 合并 openharmony 组件 (ets/js/native/previewer/toolchains, 版本自动探测)
 #      到 sdk/default/openharmony/ (覆盖 linux 自带的 26.0.0.32; hms 保持 32 不动)
 #   5. 替换 tool/node 为 openharmony arm64 node (自带 node 是 x86-64, 设备跑不了)
 #   6. hvigor 3 处设备 bug 补丁 (areIdentical / getArkVersion / worker-pool)
@@ -38,15 +38,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 DOWNLOADS="${DOWNLOADS:-$SCRIPT_DIR/Downloads}"
 LINUX_ZIP="${LINUX_ZIP:-$DOWNLOADS/commandline-tools-linux-x64-26.0.0.621.zip}"
-OHOS_SDK_TAR="${OHOS_SDK_TAR:-$DOWNLOADS/version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz}"
+OHOS_SDK_TAR="${OHOS_SDK_TAR:-$DOWNLOADS/version-Master_Version-ohos-sdk-public_ohos-20260330_020501-ohos-sdk-public_ohos.tar.gz}"
+OHOS_SDK_URL="${OHOS_SDK_URL:-https://cidownload.openharmony.cn/version/Master_Version/ohos-sdk-public_ohos/20260330_020501/version-Master_Version-ohos-sdk-public_ohos-20260330_020501-ohos-sdk-public_ohos.tar.gz}"
 NODE_TAR_XZ="${NODE_TAR_XZ:-$DOWNLOADS/node-v24.14.1-openharmony-arm64.tar.xz}"
 DEST="${DEST:-$SCRIPT_DIR/output/command-line-tools}"
 STAGE="${STAGE:-$SCRIPT_DIR/output/command-line-tools.stage}"
 FORCE="${FORCE:-0}"
 
-OHOS_VERSION="26.0.0.38"
 LINUX_VERSION="26.0.0.621"
 NODE_VERSION="24.14.1"
+OHOS_VERSION=""   # 在步骤 2 中从组件 zip 文件名自动探测
 
 STUB_DIR="$SCRIPT_DIR/stubs"
 LOG="${LOG:-$SCRIPT_DIR/output/build.log}"
@@ -59,6 +60,12 @@ log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$LOG"; }
 die() { log "错误: $*"; exit 1; }
 
 # ---------------- 输入检查 ----------------
+mkdir -p "$DOWNLOADS"
+if [ ! -f "$OHOS_SDK_TAR" ] && [ -n "${OHOS_SDK_URL:-}" ]; then
+    log "下载 ohos-sdk:"
+    log "  $OHOS_SDK_URL"
+    curl -L --fail -C - -o "$OHOS_SDK_TAR" "$OHOS_SDK_URL" || die "下载 ohos-sdk 失败"
+fi
 for f in "$LINUX_ZIP" "$OHOS_SDK_TAR" "$NODE_TAR_XZ"; do
     [ -f "$f" ] || die "缺少输入文件: $f"
 done
@@ -79,11 +86,22 @@ log "==> 1/10 解压 linux command-line-tools ($LINUX_VERSION)"
 unzip -q "$LINUX_ZIP" -d "$STAGE" || die "解压 linux zip 失败"
 [ -d "$TOOLS" ] || die "zip 内未找到 command-line-tools/ 目录"
 
-# ---------------- 2. 解压 ohos-sdk-public ----------------
-log "==> 2/10 解压 ohos-sdk-public ($OHOS_VERSION) ohos 平台组件"
+# ---------------- 2. 解压 ohos-sdk-public_ohos ----------------
+log "==> 2/10 解压 ohos-sdk-public_ohos (Master) 组件"
 OHOS_DIR="$STAGE/ohos-public"
 mkdir -p "$OHOS_DIR"
-tar -xzf "$OHOS_SDK_TAR" -C "$OHOS_DIR" "ohos-sdk/ohos" || die "解压 ohos-sdk tar.gz 失败"
+# 兼容两种打包: 旧 daily 版是 ohos-sdk/ohos/..., 新 master 版是顶层 ohos/...
+if tar -tzf "$OHOS_SDK_TAR" 2>/dev/null | grep -qm1 "^ohos-sdk/ohos/"; then
+    tar -xzf "$OHOS_SDK_TAR" -C "$OHOS_DIR" "ohos-sdk/ohos" || die "解压 ohos-sdk tar.gz 失败"
+    COMP_DIR="$OHOS_DIR/ohos-sdk/ohos"
+else
+    tar -xzf "$OHOS_SDK_TAR" -C "$OHOS_DIR" "ohos" || die "解压 ohos-sdk tar.gz 失败"
+    COMP_DIR="$OHOS_DIR/ohos"
+fi
+NATIVE_ZIP="$(ls "$COMP_DIR"/native-ohos-x64-*.zip 2>/dev/null | head -1 || true)"
+[ -n "$NATIVE_ZIP" ] || die "tar 中未找到 native-ohos-x64-*.zip 组件"
+OHOS_VERSION="$(basename "$NATIVE_ZIP" | sed -E 's/.*-ohos-x64-([0-9.]+)-.*/\1/')"
+log "    组件版本: $OHOS_VERSION (来自 $COMP_DIR)"
 
 # ---------------- 3. 解压 arm64 node ----------------
 log "==> 3/10 解压 openharmony arm64 node ($NODE_VERSION)"
@@ -96,9 +114,9 @@ NODE_ROOT="$(find "$NODE_DIR" -maxdepth 1 -type d -name 'node-v*' | head -1)"
 # ---------------- 4. 合并 openharmony 组件 ----------------
 log "==> 4/10 合并 openharmony 组件到 sdk/default/openharmony"
 for c in ets js native previewer toolchains; do
-    cz="$OHOS_DIR/ohos-sdk/ohos/${c}-ohos-x64-${OHOS_VERSION}-Beta.zip"
-    [ -f "$cz" ] || die "缺少组件: $cz"
-    log "    组件: $c"
+    cz="$(ls "$COMP_DIR"/${c}-ohos-x64-*.zip 2>/dev/null | head -1 || true)"
+    [ -n "$cz" ] && [ -f "$cz" ] || die "缺少组件 $c: $COMP_DIR 下无 ${c}-ohos-x64-*.zip"
+    log "    组件: $c ($(basename "$cz"))"
     rm -rf "$STAGE/comp-$c"
     mkdir -p "$STAGE/comp-$c"
     unzip -q "$cz" -d "$STAGE/comp-$c" || die "解压组件 $c 失败"
