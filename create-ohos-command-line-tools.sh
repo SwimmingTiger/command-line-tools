@@ -24,8 +24,10 @@
 #   5. 替换 tool/node 为 openharmony arm64 node (自带 node 是 x86-64, 设备跑不了)
 #   6. hvigor 3 处设备 bug 补丁 (areIdentical / getArkVersion / worker-pool)
 #   7. BiSheng (hms) x86-64 bin 工具替换为 openharmony aarch64 llvm 符号链接
-#   8. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要)
+#   8. ld.lld 替换为 --code-sign 包装脚本 (链接产物自签名)
 #   9. 批量签名全部 aarch64 ELF (ohos-sign-elf), 并校验签名/完整性
+#   10. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要)
+#   11. 校验
 #   交付: 移动 $DEST, 清理 STAGE
 #
 # 说明: 产物放在 f2fs (/data/storage/el2/base/files) 而非 HMDFS
@@ -200,24 +202,38 @@ for f in "$BISHENG_BIN"/*; do
 done
 log "    替换 $n 个工具 (预期 35 个)"
 
-# ---------------- 8. 批量签名 ----------------
-log "==> 8/10 解除只读属性并批量签名 (ohos-sign-elf)"
+# ---------------- 8. ld.lld 包装为 --code-sign ----------------
+# OHOS lld 支持 --code-sign (链接产物自签名, 才能在设备上执行)。用包装脚本
+# 强制每次链接都带上该参数。exec -a 保持 argv[0] 为 ld.lld (lld 按 argv[0]
+# 分发模式, 必须看到 ld.lld 才会进入 ELF 链接模式)。
+log "==> 8/11 替换 ld.lld 为 --code-sign 包装脚本"
+LLD_WRAPPER="$TOOLS/sdk/default/openharmony/native/llvm/bin/ld.lld"
+[ -x "$TOOLS/sdk/default/openharmony/native/llvm/bin/lld" ] || die "缺少 lld, 包装脚本无法工作"
+rm -f "$LLD_WRAPPER"   # 签名 ELF 不能原地覆盖, 先删再建
+cat > "$LLD_WRAPPER" <<'EOF'
+#!/bin/sh
+exec -a "$0" "$(dirname "$0")/lld" --code-sign "$@"
+EOF
+chmod +x "$LLD_WRAPPER"
+
+# ---------------- 9. 批量签名 ----------------
+log "==> 9/11 解除只读属性并批量签名 (ohos-sign-elf)"
 # cppaudit/hpaudit 等从 zip 解出为只读, 签名需要写权限
 chmod -R u+w "$TOOLS"
 # 跳过符号链接; x86-64 / 已签名 / 静态库等失败项仅记录不中止 (退出码恒为 0)
 "$OHOS_SIGN_ELF" "$TOOLS" >> "$LOG" 2>&1 || true
 log "    签名完成 (失败项见日志: x86-64 / 已签名属预期)"
 
-# ---------------- 9. hms 图像库 stub ----------------
-log "==> 9/10 编译 hms 图像库 aarch64 stub"
+# ---------------- 10. hms 图像库 stub ----------------
+log "==> 10/11 编译 hms 图像库 aarch64 stub"
 HMS_LIB="$TOOLS/sdk/default/hms/toolchains/lib"
 CLANG="$TOOLS/sdk/default/openharmony/native/llvm/bin/clang"
 [ -x "$CLANG" ] || die "clang 不可执行: $CLANG"
 bash "$STUB_DIR/build-stubs.sh" "$CLANG" "$HMS_LIB"
 "$OHOS_SIGN_ELF" "$HMS_LIB" >> "$LOG" 2>&1 || true
 
-# ---------------- 10. 校验 ----------------
-log "==> 10/10 校验 ELF 完整性与签名覆盖"
+# ---------------- 11. 校验 ----------------
+log "==> 11/11 校验 ELF 完整性与签名覆盖"
 python3 - "$TOOLS" <<'PY' | tee -a "$LOG"
 import struct, os, sys
 root = sys.argv[1]

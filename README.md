@@ -65,11 +65,26 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
    clang --target=aarch64-linux-ohos -shared -fPIC -O2 \
          -Wl,-soname,<lib名>.so hms_stub.c -o <lib名>.so
    ```
-7. **批量签名**：用 `ohos-sign-elf`（`~/.local/bin/ohos-sign-elf`，内部调用
+7. **ld.lld 包装为 --code-sign**：OHOS lld 支持 `--code-sign`（链接产物
+   自签名，才能在设备上执行）。把 `openharmony/native/llvm/bin/ld.lld`
+   换成包装脚本：
+   ```sh
+   #!/bin/sh
+   exec -a "$0" "$(dirname "$0")/lld" --code-sign "$@"
+   ```
+   `exec -a` 保持 argv[0] 为 `ld.lld`（lld 按 argv[0] 分发模式，必须是
+   ld.lld 才进入 ELF 链接模式）。注意：签名后的 ELF 不能原地覆盖
+   （Operation not permitted），需先 `rm -f` 再重建。
+
+   另：master 版 SDK 的 llvm 打包时**没有符号链接**（`clang`/`clang-15`、
+   `ld.lld`/`lld`、`libLLVM.so`/`libLLVM-15.so` 等都是两份真实文件）；
+   旧 daily-38 版才有（llvm 内 36 个符号链接）——这是 SDK 打包差异，
+   不是解压问题。
+8. **批量签名**：用 `ohos-sign-elf`（`~/.local/bin/ohos-sign-elf`，内部调用
    `binary-sign-tool sign -selfSign 1`，8 线程）签名整棵树。跳过符号链接；
    x86-64（如 BiSheng lib 大 .so、llvm-bolt 等无 openharmony 对应者）与
    已签名文件（如 ets es2abc）的失败项只记录、不中止。
-8. **产物放 f2fs**：`/data/storage/el2/base/files/command-line-tools`
+9. **产物放 f2fs**：`/data/storage/el2/base/files/command-line-tools`
    （f2fs），而非 HMDFS `/storage/Users/currentUser`：HMDFS 对未签名 ELF
    的执行有限制，且 GNU coreutils cp 写 HMDFS 有截断 bug（"error
    deallocating: Permission denied" 却退出码 0）。构建系统通过符号链接
