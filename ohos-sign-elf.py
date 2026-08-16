@@ -8,8 +8,10 @@ import subprocess
 import sys
 import threading
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
 BINARY_SIGN_TOOL = "binary-sign-tool"
-CUSTOM_SIGN_TOOL = "./self-sign.py"
+CUSTOM_SIGN_TOOL = os.path.join(script_dir, "self-sign.py")
 LLVM_OBJCOPY = "llvm-objcopy"
 MAX_WORKERS = min(os.cpu_count() or 1, 8)
 

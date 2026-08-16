@@ -12,7 +12,7 @@
 #   FORCE=1      - 目标已存在时覆盖 (默认拒绝, 防止误删正在使用的工具树)
 #   LINK_WINE=1  - 额外创建 /storage/Users/currentUser/work/wine/command-line-tools 符号链接
 #   STAGE        - 中间目录 (默认 $DEST.stage, 与 DEST 同盘; 完成自动删除)
-#   LOG          - 日志文件 (默认本目录 synth.log)
+#   LOG          - 日志文件 (默认 ./output/build.log)
 #
 # 步骤:
 #   1. 解压 linux 工具 (基础)
@@ -32,14 +32,14 @@
 # ============================================================================
 set -euo pipefail
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-DOWNLOADS="${DOWNLOADS:-$PWD/Downloads}"
+DOWNLOADS="${DOWNLOADS:-$SCRIPT_DIR/Downloads}"
 LINUX_ZIP="${LINUX_ZIP:-$DOWNLOADS/commandline-tools-linux-x64-26.0.0.621.zip}"
 OHOS_SDK_TAR="${OHOS_SDK_TAR:-$DOWNLOADS/version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz}"
 NODE_TAR_XZ="${NODE_TAR_XZ:-$DOWNLOADS/node-v24.14.1-openharmony-arm64.tar.xz}"
-DEST="${DEST:-$PWD/output/command-line-tools}"
-STAGE="${STAGE:-$PWD/output/command-line-tools.stage}"
+DEST="${DEST:-$SCRIPT_DIR/output/command-line-tools}"
+STAGE="${STAGE:-$SCRIPT_DIR/output/command-line-tools.stage}"
 FORCE="${FORCE:-0}"
 LINK_WINE="${LINK_WINE:-0}"
 
@@ -47,13 +47,12 @@ OHOS_VERSION="26.0.0.38"
 LINUX_VERSION="26.0.0.621"
 NODE_VERSION="24.14.1"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STUB_DIR="$SCRIPT_DIR/stubs"
-LOG="${LOG:-$SCRIPT_DIR/synth.log}"
+LOG="${LOG:-$SCRIPT_DIR/output/build.log}"
 
 # binary-sign-tool / llvm-objcopy / ohos-sign-elf 所在目录
 export PATH="/storage/Users/currentUser/.harmonybrew/bin:/storage/Users/currentUser/.local/bin:$PATH"
-OHOS_SIGN_ELF="${OHOS_SIGN_ELF:-./ohos-sign-elf.py}"
+OHOS_SIGN_ELF="${OHOS_SIGN_ELF:-$SCRIPT_DIR/ohos-sign-elf.py}"
 
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$LOG"; }
 die() { log "错误: $*"; exit 1; }
