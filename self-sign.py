@@ -1,0 +1,1 @@
+ohos-bst-light/self-sign.py

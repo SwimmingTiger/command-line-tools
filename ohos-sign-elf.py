@@ -9,7 +9,7 @@ import sys
 import threading
 
 BINARY_SIGN_TOOL = "binary-sign-tool"
-CUSTOM_SIGN_TOOL = "./ohos-bst-light/self-sign.py"
+CUSTOM_SIGN_TOOL = "./self-sign.py"
 LLVM_OBJCOPY = "llvm-objcopy"
 MAX_WORKERS = min(os.cpu_count() or 1, 8)
 
