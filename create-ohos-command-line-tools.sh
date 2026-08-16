@@ -23,7 +23,7 @@
 #      到 sdk/default/openharmony/ (叠加覆盖: 同名文件被新版替换、新增文件被加入,
 #      linux 基底中已有的其他文件保留不删; hms 保持 32 不动)
 #   5. llvm 重复文件符号链接化 (md5 校验内容相同后替换, 参照 ohos-sdk.rb ln_map)
-#   6. hvigor 3 处设备 bug 补丁 (areIdentical / getArkVersion / worker-pool)
+#   6. hvigor 设备 bug 补丁 (areIdentical)
 #   7. BiSheng (hms) x86-64 bin 工具替换为 openharmony aarch64 llvm 符号链接
 #   8. ld.lld 替换为 --code-sign 包装脚本 (链接产物自签名)
 #   9. 批量签名全部 aarch64 ELF (ohos-sign-elf), 并校验签名/完整性
@@ -197,8 +197,8 @@ llvm_dedup "$TOOLS/sdk/default/openharmony/native/llvm/lib" \
     "libxml2.so:libxml2.so.2.14.0" "libxml2.so.16:libxml2.so.2.14.0"
 
 # ---------------- 6. hvigor 设备 bug 补丁 ----------------
-# 6.1 areIdentical: 设备 f2fs 的 stat 返回 dev=0, 原判断 e.dev===t.dev 恒真且
-#     e.ino 为 0 时误判"文件相同"而跳过复制 (hvigor 报错/产物缺失)。
+# areIdentical: 设备 f2fs 的 stat 返回 dev=0, 原判断 e.dev===t.dev 恒真且
+# e.ino 为 0 时误判"文件相同"而跳过复制 (hvigor 报错/产物缺失)。
 patch_areIdentical() {
     python3 - "$1" <<'PY'
 import sys
@@ -211,39 +211,9 @@ open(p, "w", encoding="utf-8").write(s.replace(old, new))
 print("      patched:", p)
 PY
 }
-# 6.2 getArkVersion: hvigor 会 spawn ts2abc 探测 ark 版本, 在设备上经常失败;
-#     直接固定返回 13.0.1.0。
-patch_getArkVersion() {
-    python3 - "$1" <<'PY'
-import sys, re
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-m = re.search(r"getArkVersion\(e,t\)\{.*?\}\}exports\.EtsArkComponent", s, re.S)
-assert m, f"ets-ark-component.js 未找到 getArkVersion: {p}"
-new = 'getArkVersion(e,t){return"13.0.1.0"}}exports.EtsArkComponent'
-open(p, "w", encoding="utf-8").write(s[:m.start()] + new + s[m.end():])
-print("      patched:", p)
-PY
-}
-# 6.3 worker-pool: hvigor 在设备上用 worker 线程池执行 native 命令时
-#     libentry.so 会消失 (worker 目录遍历 bug), 绕过 worker 直接执行。
-patch_worker() {
-    python3 - "$1" <<'PY'
-import sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-old = "if(this.getWorkerPool().submit(this,l,s).getState()===hvigor_1.TaskState.REJECT){"
-new = "if(true/*worker-bypass*/){"
-assert old in s, f"abstract-build-native.js 未找到 worker 分支: {p}"
-open(p, "w", encoding="utf-8").write(s.replace(old, new))
-print("      patched:", p)
-PY
-}
 
-log "==> 6/11 hvigor 设备 bug 补丁"
+log "==> 6/11 hvigor 设备 bug 补丁 (areIdentical)"
 patch_areIdentical "$TOOLS/hvigor/hvigor/src/common/util/path-util.js"
-patch_getArkVersion "$TOOLS/hvigor/hvigor-ohos-plugin/src/sdk/impl/ets-ark-component.js"
-patch_worker "$TOOLS/hvigor/hvigor-ohos-plugin/src/tasks/abstract-build-native.js"
 
 # ---------------- 7. BiSheng x86-64 工具替换 ----------------
 # hms BiSheng 的 bin 工具是 x86-64 glibc ELF (设备无法运行) 且无法签名;

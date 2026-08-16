@@ -42,18 +42,12 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
    `tool/node/`（同名文件如 `bin/node` 被 arm64 版替换，原目录其他文件保留），
    之后 `bin/hvigorw`（原版，自动设置
    `DEVECO_NODE_HOME=$all_tool_dir/tool/node`）即可直接工作。
-4. **hvigor 3 处设备 bug 补丁**（仅改源文件，node_modules 副本不动）：
-   - `hvigor/hvigor/src/common/util/path-util.js` 的 `areIdentical`：
-     设备 f2fs 的 stat 返回 `dev=0`，原判断 `e.ino&&e.dev&&e.ino===t.ino&&e.dev===t.dev`
-     在 ino 为 0 时仍可能误判"同一文件"而跳过复制 → 改为
-     `!!e.ino&&e.ino===t.ino&&e.dev===t.dev`（ino/dev 均非 0 才判同）。
-   - `hvigor/hvigor-ohos-plugin/src/sdk/impl/ets-ark-component.js` 的
-     `getArkVersion`：hvigor 会 spawn ts2abc 探测 ark 版本，设备上不稳定 →
-     直接 `return"13.0.1.0"`。
-   - `hvigor/hvigor-ohos-plugin/src/tasks/abstract-build-native.js` 的
-     worker 分支：设备上 worker 线程池执行 native 命令时 libentry.so 会消失 →
-     `if(this.getWorkerPool().submit(...)...REJECT){` 改为 `if(true/*worker-bypass*/){`
-     绕过 worker 直接执行。
+4. **hvigor 设备 bug 补丁（areIdentical）**（仅改源文件，node_modules 副本
+   不动）：`hvigor/hvigor/src/common/util/path-util.js` 的 `areIdentical`：
+   设备 f2fs 的 stat 返回 `dev=0`，原判断
+   `e.ino&&e.dev&&e.ino===t.ino&&e.dev===t.dev` 在 ino 为 0 时仍可能误判
+   "同一文件"而跳过复制 → 改为
+   `!!e.ino&&e.ino===t.ino&&e.dev===t.dev`（ino/dev 均非 0 才判同）。
 5. **BiSheng（hms）x86-64 bin 工具 → openharmony 符号链接**：hms 的 BiSheng
    clang/llvm 工具是 x86-64 glibc ELF，设备上无法运行也无法签名；对每个在
    `openharmony/native/llvm/bin` 有同名 aarch64 工具者（35 个）替换为相对
