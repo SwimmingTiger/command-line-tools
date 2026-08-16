@@ -92,6 +92,17 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
    的执行有限制，且 GNU coreutils cp 写 HMDFS 有截断 bug（"error
    deallocating: Permission denied" 却退出码 0）。构建系统通过符号链接
    `/storage/Users/currentUser/work/wine/command-line-tools` 引用它。
+10. **llvm 重复文件符号链接化**：master 官方包把符号链接实体化成了文件副本
+    （`clang`/`clang-15` 等各 109MB），参照 harmonybrew-core `ohos-sdk.rb`
+    的 `ln_map` 做法，用固定映射表把**内容相同**（md5 校验通过）的重复文件
+    换回符号链接：bin 11 个（clang 家族→clang-15、lld 家族→lld、
+    llvm-lib/ranlib→llvm-ar、llvm-strip→llvm-objcopy、llvm-addr2line→
+    llvm-symbolizer、llvm-readelf→llvm-readobj），lib 9 个（libLLVM→
+    libLLVM-15、libclang.so.15→libclang.so.15.0.4、liblldb.so.15→
+    liblldb.so.15.0.4、liblldbIntelFeatures→.15、libgomp/libiomp5→libomp、
+    libxml2→libxml2.so.2.14.0）。md5 不同的对跳过（如 libLTO.so 与
+    libLTO.so.15 内容不同、OpenMP `.bc` 位码同大小不同内容，均不处理）。
+    `ld.lld` 不在此表，由第 8 步包装脚本处理。llvm 体积从约 3.5G 降至 2.5G。
 
 ## 用法
 
