@@ -7,7 +7,7 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 
 | 文件 | 说明 |
 |---|---|
-| `synth-command-line-tools.sh` | 一键合成脚本（9 步，见下） |
+| `create-ohos-command-line-tools.sh` | 一键合成脚本（9 步，见下） |
 | `stubs/hms_stub.c` | hms 图像库 stub 源码（导出与真实库同名符号） |
 | `stubs/build-stubs.sh` | stub 编译脚本（被主脚本第 8 步调用） |
 
@@ -16,7 +16,7 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 | 文件 | 作用 | 下载地址 |
 |---|---|---|
 | `commandline-tools-linux-x64-26.0.0.621.zip` | 基础（完整版，含 hvigor/ohpm/hstack/codelinter/sdk） | https://developer.huawei.com/consumer/cn/download/command-line-tools-for-hmos |
-| `version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz` | 5 个 linux 组件：ets/js/native/previewer/toolchains（26.0.0.38） | https://dcp.openharmony.cn/workbench/cicd/dailybuild/dailylist |
+| `version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz` | 5 个 **ohos 平台**组件：ets/js/native/previewer/toolchains（26.0.0.38） | https://dcp.openharmony.cn/workbench/cicd/dailybuild/dailylist |
 | `node-v24.14.1-openharmony-arm64.tar.xz` | openharmony arm64 node，替换自带的 x86-64 node | https://github.com/hqzing/ohos-node/releases/tag/v24.14.1 |
 
 ## 为什么这样做
@@ -25,6 +25,11 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 2. **合并 openharmony 26.0.0.38 组件**：linux 自带 openharmony 是 26.0.0.32
    （Beta2），用更新的 public SDK 组件整体替换 `sdk/default/openharmony/`
    下的 ets/js/native/previewer/toolchains；`hms` 保持 26.0.0.32 不动。
+   ⚠️ **必须使用 `ohos-sdk/ohos/` 下的 `*-ohos-x64-*` 变体**（二进制为
+   aarch64 musl，能在设备上运行）。`ohos-sdk/linux/` 的 `*-linux-x64-*`
+   变体是 x86-64 主机工具（clang-15/restool/hdc 等均为 x86-64 glibc），
+   设备上无法执行，stub 编译会报 "cannot execute binary file: Exec format
+   error"，BiSheng 替换数也会从 35 变成 47（llvm bin 工具集不同）。
 3. **替换 tool/node**：自带 node 是 x86-64 ELF（动态链接 glibc），在设备上
    无法运行；换成 openharmony 官方 arm64 musl node v24.14.1 后，
    `bin/hvigorw`（原版，自动设置 `DEVECO_NODE_HOME=$all_tool_dir/tool/node`）
@@ -70,15 +75,15 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 
 ```bash
 # 默认输出到 /data/storage/el2/base/files/command-line-tools (已存在则需 FORCE=1)
-bash /storage/Users/currentUser/work/hmos/command-line-tools/synth-command-line-tools.sh
+bash /storage/Users/currentUser/work/hmos/command-line-tools/create-ohos-command-line-tools.sh
 
 # 覆盖现有工具树 + 更新 wine 符号链接
-FORCE=1 LINK_WINE=1 bash .../synth-command-line-tools.sh
+FORCE=1 LINK_WINE=1 bash .../create-ohos-command-line-tools.sh
 
 # 自定义输入/输出
 LINUX_ZIP=... OHOS_SDK_TAR=... NODE_TAR_XZ=... \
 DEST=/data/storage/el2/base/files/command-line-tools-v2 \
-bash .../synth-command-line-tools.sh
+bash .../create-ohos-command-line-tools.sh
 ```
 
 耗时取决于设备磁盘速度（解压约 10 GB 写入），全程日志在

@@ -5,10 +5,10 @@
 #
 # 输入 (可用环境变量覆盖):
 #   LINUX_ZIP    - commandline-tools-linux-x64-26.0.0.621.zip (基础, 完整版)
-#   OHOS_SDK_TAR - OpenHarmony_7.0.0.38 ohos-sdk-public tar.gz (5 个 linux 组件)
+#   OHOS_SDK_TAR - OpenHarmony_7.0.0.38 ohos-sdk-public tar.gz (5 个 ohos 平台组件)
 #   NODE_TAR_XZ  - node-v24.14.1-openharmony-arm64.tar.xz (替换 x64 node)
 # 输出:
-#   DEST         - 合成结果 (默认 /data/storage/el2/base/files/command-line-tools)
+#   DEST         - 合成结果 (默认 $SCRIPT_DIR/output/command-line-tools)
 #   FORCE=1      - 目标已存在时覆盖 (默认拒绝, 防止误删正在使用的工具树)
 #   LINK_WINE=1  - 额外创建 /storage/Users/currentUser/work/wine/command-line-tools 符号链接
 #   STAGE        - 中间目录 (默认 $DEST.stage, 与 DEST 同盘; 完成自动删除)
@@ -17,6 +17,9 @@
 # 步骤:
 #   1. 解压 linux 工具 (基础)
 #   2. 解压 ohos-sdk-public, 3. 解压 arm64 node
+#       (注意: 组件必须用 ohos-sdk/ohos/ 下的 *-ohos-x64-* 变体,
+#        其内二进制为 aarch64 musl; ohos-sdk/linux/ 变体是 x86-64 主机工具,
+#        在设备上无法执行)
 #   4. 合并 openharmony 26.0.0.38 组件 (ets/js/native/previewer/toolchains)
 #      到 sdk/default/openharmony/ (覆盖 linux 自带的 26.0.0.32; hms 保持 32 不动)
 #   5. 替换 tool/node 为 openharmony arm64 node (自带 node 是 x86-64, 设备跑不了)
@@ -79,10 +82,10 @@ unzip -q "$LINUX_ZIP" -d "$STAGE" || die "解压 linux zip 失败"
 [ -d "$TOOLS" ] || die "zip 内未找到 command-line-tools/ 目录"
 
 # ---------------- 2. 解压 ohos-sdk-public ----------------
-log "==> 2/9 解压 ohos-sdk-public ($OHOS_VERSION) linux 组件"
+log "==> 2/9 解压 ohos-sdk-public ($OHOS_VERSION) ohos 平台组件"
 OHOS_DIR="$STAGE/ohos-public"
 mkdir -p "$OHOS_DIR"
-tar -xzf "$OHOS_SDK_TAR" -C "$OHOS_DIR" "ohos-sdk/linux" || die "解压 ohos-sdk tar.gz 失败"
+tar -xzf "$OHOS_SDK_TAR" -C "$OHOS_DIR" "ohos-sdk/ohos" || die "解压 ohos-sdk tar.gz 失败"
 
 # ---------------- 3. 解压 arm64 node ----------------
 log "==> 3/9 解压 openharmony arm64 node ($NODE_VERSION)"
@@ -95,7 +98,7 @@ NODE_ROOT="$(find "$NODE_DIR" -maxdepth 1 -type d -name 'node-v*' | head -1)"
 # ---------------- 4. 合并 openharmony 组件 ----------------
 log "==> 4/9 合并 openharmony 组件到 sdk/default/openharmony"
 for c in ets js native previewer toolchains; do
-    cz="$OHOS_DIR/ohos-sdk/linux/${c}-linux-x64-${OHOS_VERSION}-Beta.zip"
+    cz="$OHOS_DIR/ohos-sdk/ohos/${c}-ohos-x64-${OHOS_VERSION}-Beta.zip"
     [ -f "$cz" ] || die "缺少组件: $cz"
     log "    组件: $c"
     rm -rf "$STAGE/comp-$c"
