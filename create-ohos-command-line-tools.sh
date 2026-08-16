@@ -16,19 +16,22 @@
 #
 # 步骤:
 #   1. 解压 linux 工具 (基础)
-#   2. 解压 ohos-sdk-public_ohos (Master), 3. 解压 arm64 node
+#   2. 解压 ohos-sdk-public_ohos (Master), 3. 覆盖解压 arm64 node 到 tool/node
 #       (注意: 组件必须用 *-ohos-x64-* 变体, 其内二进制为 aarch64 musl;
 #        master 版 tar 顶层为 ohos/, 旧 daily 版为 ohos-sdk/ohos/, 脚本自动兼容)
 #   4. 合并 openharmony 组件 (ets/js/native/previewer/toolchains, 版本自动探测)
-#      到 sdk/default/openharmony/ (覆盖 linux 自带的 26.0.0.32; hms 保持 32 不动)
-#   5. 替换 tool/node 为 openharmony arm64 node (自带 node 是 x86-64, 设备跑不了)
-#   6. hvigor 3 处设备 bug 补丁 (areIdentical / getArkVersion / worker-pool)
-#   7. BiSheng (hms) x86-64 bin 工具替换为 openharmony aarch64 llvm 符号链接
-#   8. ld.lld 替换为 --code-sign 包装脚本 (链接产物自签名)
-#   9. 批量签名全部 aarch64 ELF (ohos-sign-elf), 并校验签名/完整性
-#   10. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要)
-#   11. 校验
+#      到 sdk/default/openharmony/ (叠加覆盖: 同名文件被新版替换、新增文件被加入,
+#      linux 基底中已有的其他文件保留不删; hms 保持 32 不动)
+#   5. hvigor 3 处设备 bug 补丁 (areIdentical / getArkVersion / worker-pool)
+#   6. BiSheng (hms) x86-64 bin 工具替换为 openharmony aarch64 llvm 符号链接
+#   7. ld.lld 替换为 --code-sign 包装脚本 (链接产物自签名)
+#   8. 批量签名全部 aarch64 ELF (ohos-sign-elf), 并校验签名/完整性
+#   9. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要)
+#   10. 校验
 #   交付: 移动 $DEST, 清理 STAGE
+#
+# 所有压缩包统一采用"覆盖解压"策略: 直接解压到目标目录, 同名文件被覆盖,
+# 目标中原有的其他文件保留不删。
 #
 # 说明: 产物放在 f2fs (/data/storage/el2/base/files) 而非 HMDFS
 #       (/storage/Users/currentUser), 因 HMDFS 对未签名 ELF 的执行有限制,
@@ -105,34 +108,30 @@ NATIVE_ZIP="$(ls "$COMP_DIR"/native-ohos-x64-*.zip 2>/dev/null | head -1 || true
 OHOS_VERSION="$(basename "$NATIVE_ZIP" | sed -E 's/.*-ohos-x64-([0-9.]+)-.*/\1/')"
 log "    组件版本: $OHOS_VERSION (来自 $COMP_DIR)"
 
-# ---------------- 3. 解压 arm64 node ----------------
-log "==> 3/10 解压 openharmony arm64 node ($NODE_VERSION)"
-NODE_DIR="$STAGE/node"
-mkdir -p "$NODE_DIR"
-tar -xJf "$NODE_TAR_XZ" -C "$NODE_DIR" || die "解压 node tar.xz 失败"
-NODE_ROOT="$(find "$NODE_DIR" -maxdepth 1 -type d -name 'node-v*' | head -1)"
-[ -n "$NODE_ROOT" ] || die "node 包内未找到 node-v* 目录"
+# ---------------- 3. 覆盖解压 arm64 node 到 tool/node ----------------
+log "==> 3/10 覆盖解压 openharmony arm64 node ($NODE_VERSION) 到 tool/node"
+# 与组件合并同策略: 同名文件被 arm64 node 覆盖 (bin/node 等),
+# linux 基底 tool/node 中已有的其他文件保留不删。
+# --strip-components=1 去掉 tar 顶层目录 (node-v24.14.1-openharmony-arm64/)。
+mkdir -p "$TOOLS/tool/node"
+tar -xJf "$NODE_TAR_XZ" -C "$TOOLS/tool/node" --strip-components=1 || die "解压 node tar.xz 失败"
+[ -x "$TOOLS/tool/node/bin/node" ] || die "tool/node/bin/node 缺失"
 
-# ---------------- 4. 合并 openharmony 组件 ----------------
-log "==> 4/10 合并 openharmony 组件到 sdk/default/openharmony"
+# ---------------- 4. 合并 openharmony 组件 (叠加覆盖) ----------------
+log "==> 4/10 合并 openharmony 组件到 sdk/default/openharmony (叠加覆盖)"
 for c in ets js native previewer toolchains; do
     cz="$(ls "$COMP_DIR"/${c}-ohos-x64-*.zip 2>/dev/null | head -1 || true)"
     [ -n "$cz" ] && [ -f "$cz" ] || die "缺少组件 $c: $COMP_DIR 下无 ${c}-ohos-x64-*.zip"
     log "    组件: $c ($(basename "$cz"))"
-    rm -rf "$STAGE/comp-$c"
-    mkdir -p "$STAGE/comp-$c"
-    unzip -q "$cz" -d "$STAGE/comp-$c" || die "解压组件 $c 失败"
-    [ -d "$STAGE/comp-$c/$c" ] || die "组件 $c 顶层目录异常"
-    rm -rf "$TOOLS/sdk/default/openharmony/$c"
-    cp -a "$STAGE/comp-$c/$c" "$TOOLS/sdk/default/openharmony/$c"
+    # 叠加合并: zip 顶层目录名 == 组件目录名, 直接解压覆盖到 openharmony/ 下。
+    # 同名文件被新组件覆盖, 新组件独有的文件被加入, linux 基底中已有的其他
+    # 文件全部保留 (不删除原有内容)。
+    mkdir -p "$TOOLS/sdk/default/openharmony"
+    unzip -o -q "$cz" -d "$TOOLS/sdk/default/openharmony" || die "解压组件 $c 失败"
+    [ -f "$TOOLS/sdk/default/openharmony/$c/oh-uni-package.json" ] || die "组件 $c 顶层目录异常 (缺少 oh-uni-package.json)"
 done
 
-# ---------------- 5. 替换 tool/node ----------------
-log "==> 5/10 替换 tool/node 为 arm64 node"
-rm -rf "$TOOLS/tool/node"
-cp -a "$NODE_ROOT" "$TOOLS/tool/node"
-
-# ---------------- 6. hvigor 设备 bug 补丁 ----------------
+# ---------------- 5. hvigor 设备 bug 补丁 ----------------
 # 6.1 areIdentical: 设备 f2fs 的 stat 返回 dev=0, 原判断 e.dev===t.dev 恒真且
 #     e.ino 为 0 时误判"文件相同"而跳过复制 (hvigor 报错/产物缺失)。
 patch_areIdentical() {
@@ -176,15 +175,15 @@ print("      patched:", p)
 PY
 }
 
-log "==> 6/10 hvigor 设备 bug 补丁"
+log "==> 5/10 hvigor 设备 bug 补丁"
 patch_areIdentical "$TOOLS/hvigor/hvigor/src/common/util/path-util.js"
 patch_getArkVersion "$TOOLS/hvigor/hvigor-ohos-plugin/src/sdk/impl/ets-ark-component.js"
 patch_worker "$TOOLS/hvigor/hvigor-ohos-plugin/src/tasks/abstract-build-native.js"
 
-# ---------------- 7. BiSheng x86-64 工具替换 ----------------
+# ---------------- 6. BiSheng x86-64 工具替换 ----------------
 # hms BiSheng 的 bin 工具是 x86-64 glibc ELF (设备无法运行) 且无法签名;
 # 对每个在 openharmony llvm bin 中存在同名 aarch64 工具者, 替换为相对符号链接。
-log "==> 7/10 BiSheng x86-64 工具替换为 openharmony aarch64 符号链接"
+log "==> 6/10 BiSheng x86-64 工具替换为 openharmony aarch64 符号链接"
 BISHENG_BIN="$TOOLS/sdk/default/hms/native/BiSheng/bin"
 OH_LLVM_BIN="$TOOLS/sdk/default/openharmony/native/llvm/bin"
 n=0
@@ -202,11 +201,11 @@ for f in "$BISHENG_BIN"/*; do
 done
 log "    替换 $n 个工具 (预期 35 个)"
 
-# ---------------- 8. ld.lld 包装为 --code-sign ----------------
+# ---------------- 7. ld.lld 包装为 --code-sign ----------------
 # OHOS lld 支持 --code-sign (链接产物自签名, 才能在设备上执行)。用包装脚本
 # 强制每次链接都带上该参数。exec -a 保持 argv[0] 为 ld.lld (lld 按 argv[0]
 # 分发模式, 必须看到 ld.lld 才会进入 ELF 链接模式)。
-log "==> 8/11 替换 ld.lld 为 --code-sign 包装脚本"
+log "==> 7/10 替换 ld.lld 为 --code-sign 包装脚本"
 LLD_WRAPPER="$TOOLS/sdk/default/openharmony/native/llvm/bin/ld.lld"
 [ -x "$TOOLS/sdk/default/openharmony/native/llvm/bin/lld" ] || die "缺少 lld, 包装脚本无法工作"
 rm -f "$LLD_WRAPPER"   # 签名 ELF 不能原地覆盖, 先删再建
@@ -216,24 +215,24 @@ exec -a "$0" "$(dirname "$0")/lld" --code-sign "$@"
 EOF
 chmod +x "$LLD_WRAPPER"
 
-# ---------------- 9. 批量签名 ----------------
-log "==> 9/11 解除只读属性并批量签名 (ohos-sign-elf)"
+# ---------------- 8. 批量签名 ----------------
+log "==> 8/10 解除只读属性并批量签名 (ohos-sign-elf)"
 # cppaudit/hpaudit 等从 zip 解出为只读, 签名需要写权限
 chmod -R u+w "$TOOLS"
 # 跳过符号链接; x86-64 / 已签名 / 静态库等失败项仅记录不中止 (退出码恒为 0)
 "$OHOS_SIGN_ELF" "$TOOLS" >> "$LOG" 2>&1 || true
 log "    签名完成 (失败项见日志: x86-64 / 已签名属预期)"
 
-# ---------------- 10. hms 图像库 stub ----------------
-log "==> 10/11 编译 hms 图像库 aarch64 stub"
+# ---------------- 9. hms 图像库 stub ----------------
+log "==> 9/10 编译 hms 图像库 aarch64 stub"
 HMS_LIB="$TOOLS/sdk/default/hms/toolchains/lib"
 CLANG="$TOOLS/sdk/default/openharmony/native/llvm/bin/clang"
 [ -x "$CLANG" ] || die "clang 不可执行: $CLANG"
 bash "$STUB_DIR/build-stubs.sh" "$CLANG" "$HMS_LIB"
 "$OHOS_SIGN_ELF" "$HMS_LIB" >> "$LOG" 2>&1 || true
 
-# ---------------- 11. 校验 ----------------
-log "==> 11/11 校验 ELF 完整性与签名覆盖"
+# ---------------- 10. 校验 ----------------
+log "==> 10/10 校验 ELF 完整性与签名覆盖"
 python3 - "$TOOLS" <<'PY' | tee -a "$LOG"
 import struct, os, sys
 root = sys.argv[1]

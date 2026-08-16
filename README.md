@@ -22,9 +22,11 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 ## 为什么这样做
 
 1. **Linux 版本来就是完整的**：以 linux zip 为基底，不需要 Windows 版补充。
-2. **合并 openharmony 组件（版本自动探测）**：linux 自带 openharmony 是 26.0.0.32
-   （Beta2），用更新的 public SDK 组件整体替换 `sdk/default/openharmony/`
-   下的 ets/js/native/previewer/toolchains；`hms` 保持 26.0.0.32 不动。
+2. **合并 openharmony 组件（版本自动探测，叠加覆盖）**：linux 自带 openharmony
+   是 26.0.0.32（Beta2），把更新的 public SDK 组件 zip **直接解压叠加**到
+   `sdk/default/openharmony/` 下：同名文件被新版覆盖、新组件独有的文件被加入，
+   **linux 基底中已有的其他文件全部保留、不删除**（避免新版组件与旧版相比
+   "少掉的"文件被误删）；`hms` 保持 26.0.0.32 不动。
    当前默认使用 **Master 版 `ohos-sdk-public_ohos`**（20260330，组件
    26.0.0.18-Beta），该 tar 只含 ohos 平台组件（顶层 `ohos/`，二进制均为
    aarch64 musl）。脚本对两种打包均兼容：master 版（`ohos/`）与旧 daily 版
@@ -34,10 +36,11 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
    x86-64 glibc），设备上无法执行，stub 编译会报 "cannot execute binary
    file: Exec format error"，BiSheng 替换数也会从 35 变成 47（llvm bin
    工具集不同）。
-3. **替换 tool/node**：自带 node 是 x86-64 ELF（动态链接 glibc），在设备上
-   无法运行；换成 openharmony 官方 arm64 musl node v24.14.1 后，
-   `bin/hvigorw`（原版，自动设置 `DEVECO_NODE_HOME=$all_tool_dir/tool/node`）
-   即可直接工作。
+3. **覆盖解压 tool/node**：自带 node 是 x86-64 ELF（动态链接 glibc），在设备上
+   无法运行；将 openharmony 官方 arm64 musl node v24.14.1 覆盖解压到
+   `tool/node/`（同名文件如 `bin/node` 被 arm64 版替换，原目录其他文件保留），
+   之后 `bin/hvigorw`（原版，自动设置
+   `DEVECO_NODE_HOME=$all_tool_dir/tool/node`）即可直接工作。
 4. **hvigor 3 处设备 bug 补丁**（仅改源文件，node_modules 副本不动）：
    - `hvigor/hvigor/src/common/util/path-util.js` 的 `areIdentical`：
      设备 f2fs 的 stat 返回 `dev=0`，原判断 `e.ino&&e.dev&&e.ino===t.ino&&e.dev===t.dev`
