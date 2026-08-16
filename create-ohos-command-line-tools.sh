@@ -32,6 +32,8 @@
 # ============================================================================
 set -euo pipefail
 
+cd "$(dirname "$0")"
+
 DOWNLOADS="${DOWNLOADS:-$PWD/Downloads}"
 LINUX_ZIP="${LINUX_ZIP:-$DOWNLOADS/commandline-tools-linux-x64-26.0.0.621.zip}"
 OHOS_SDK_TAR="${OHOS_SDK_TAR:-$DOWNLOADS/version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz}"
@@ -51,7 +53,7 @@ LOG="${LOG:-$SCRIPT_DIR/synth.log}"
 
 # binary-sign-tool / llvm-objcopy / ohos-sign-elf 所在目录
 export PATH="/storage/Users/currentUser/.harmonybrew/bin:/storage/Users/currentUser/.local/bin:$PATH"
-OHOS_SIGN_ELF="${OHOS_SIGN_ELF:-ohos-sign-elf}"
+OHOS_SIGN_ELF="${OHOS_SIGN_ELF:-./ohos-sign-elf.py}"
 
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$LOG"; }
 die() { log "错误: $*"; exit 1; }
