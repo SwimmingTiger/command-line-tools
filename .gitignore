@@ -1,4 +1,4 @@
-command-line-tools
+command-line-tools*
 *.zip
 *.tar
 *.tar.*
