@@ -69,6 +69,9 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
    clang --target=aarch64-linux-ohos -shared -fPIC -O2 \
          -Wl,-soname,<lib名>.so hms_stub.c -o <lib名>.so
    ```
+   加载这些 stub 库的工具（已知：`openharmony/toolchains/restool`，处理资源时
+   dlopen 图像库）需要在 stub 编译并签名后**重签名（`--resign`）**，否则
+   dlopen 报 `Operation not permitted`（签名状态不一致）。
 7. **ld.lld 包装为 --code-sign**：OHOS lld 支持 `--code-sign`（链接产物
    自签名，才能在设备上执行）。把 `openharmony/native/llvm/bin/ld.lld`
    换成包装脚本：

@@ -27,7 +27,8 @@
 #   7. BiSheng (hms) x86-64 bin 工具替换为 openharmony aarch64 llvm 符号链接
 #   8. ld.lld 替换为 --code-sign 包装脚本 (链接产物自签名)
 #   9. 批量签名全部 aarch64 ELF (ohos-sign-elf), 并校验签名/完整性
-#   10. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要)
+#   10. hms toolchains 6 个图像库换为 aarch64 musl stub (restool dlopen 需要),
+#       并对加载 stub 库的工具重签名 (--resign, 已知: restool)
 #   11. 校验
 #   12. 扫描 x86-64 ELF 可执行文件并取消执行权限 (基底残留 x64 工具, 防止误调用)
 #   交付: 移动 $DEST, 清理 STAGE
@@ -294,6 +295,20 @@ CLANG="$TOOLS/sdk/default/openharmony/native/llvm/bin/clang"
 [ -x "$CLANG" ] || die "clang 不可执行: $CLANG"
 bash "$STUB_DIR/build-stubs.sh" "$CLANG" "$HMS_LIB"
 "$OHOS_SIGN_ELF" "$HMS_LIB" >> "$LOG" 2>&1 || true
+
+# 加载 stub 库的工具需要在 stub 编译并签名后重签名 (--resign),
+# 否则 dlopen 会失败 (签名状态不一致, 报 Operation not permitted)。
+# 已知: restool (处理资源时 dlopen hms/toolchains/lib 的图像库)。
+log "==> 10b/11 重签名加载 stub 库的工具 (--resign)"
+STUB_LOADER_TOOLS=(
+    "$TOOLS/sdk/default/openharmony/toolchains/restool"
+)
+for tool in "${STUB_LOADER_TOOLS[@]}"; do
+    if [ -f "$tool" ]; then
+        log "    重签名: $tool"
+        "$OHOS_SIGN_ELF" --resign "$tool" >> "$LOG" 2>&1 || true
+    fi
+done
 
 # ---------------- 11. 校验 ----------------
 log "==> 11/11 校验 ELF 完整性与签名覆盖"
