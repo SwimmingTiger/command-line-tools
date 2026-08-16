@@ -11,12 +11,12 @@ command-line-tools 的全部材料：主脚本、stub 源文件、stub 构建脚
 | `stubs/hms_stub.c` | hms 图像库 stub 源码（导出与真实库同名符号） |
 | `stubs/build-stubs.sh` | stub 编译脚本（被主脚本第 8 步调用） |
 
-## 输入（均在 `/storage/Users/currentUser/Downloads/`）
+## 输入（放在 `./Downloads/`）
 
 | 文件 | 作用 | 下载地址 |
 |---|---|---|
 | `commandline-tools-linux-x64-26.0.0.621.zip` | 基础（完整版，含 hvigor/ohpm/hstack/codelinter/sdk） | https://developer.huawei.com/consumer/cn/download/command-line-tools-for-hmos |
-| `version-Daily_Version-OpenHarmony_7.0.0.38-...-ohos-sdk-public.tar.gz` | 5 个 linux 组件：ets/js/native/previewer/toolchains（26.0.0.38） | https://dcp.openharmony.cn/workbench/cicd/dailybuild/dailylist |
+| `version-Daily_Version-OpenHarmony_7.0.0.38-20260816_000626-ohos-sdk-public.tar.gz` | 5 个 linux 组件：ets/js/native/previewer/toolchains（26.0.0.38） | https://dcp.openharmony.cn/workbench/cicd/dailybuild/dailylist |
 | `node-v24.14.1-openharmony-arm64.tar.xz` | openharmony arm64 node，替换自带的 x86-64 node | https://github.com/hqzing/ohos-node/releases/tag/v24.14.1 |
 
 ## 为什么这样做
