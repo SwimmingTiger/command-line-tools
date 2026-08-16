@@ -75,18 +75,18 @@ mkdir -p "$STAGE"
 TOOLS="$STAGE/command-line-tools"
 
 # ---------------- 1. 解压 linux 基础工具 ----------------
-log "==> 1/9 解压 linux command-line-tools ($LINUX_VERSION)"
+log "==> 1/10 解压 linux command-line-tools ($LINUX_VERSION)"
 unzip -q "$LINUX_ZIP" -d "$STAGE" || die "解压 linux zip 失败"
 [ -d "$TOOLS" ] || die "zip 内未找到 command-line-tools/ 目录"
 
 # ---------------- 2. 解压 ohos-sdk-public ----------------
-log "==> 2/9 解压 ohos-sdk-public ($OHOS_VERSION) ohos 平台组件"
+log "==> 2/10 解压 ohos-sdk-public ($OHOS_VERSION) ohos 平台组件"
 OHOS_DIR="$STAGE/ohos-public"
 mkdir -p "$OHOS_DIR"
 tar -xzf "$OHOS_SDK_TAR" -C "$OHOS_DIR" "ohos-sdk/ohos" || die "解压 ohos-sdk tar.gz 失败"
 
 # ---------------- 3. 解压 arm64 node ----------------
-log "==> 3/9 解压 openharmony arm64 node ($NODE_VERSION)"
+log "==> 3/10 解压 openharmony arm64 node ($NODE_VERSION)"
 NODE_DIR="$STAGE/node"
 mkdir -p "$NODE_DIR"
 tar -xJf "$NODE_TAR_XZ" -C "$NODE_DIR" || die "解压 node tar.xz 失败"
@@ -94,7 +94,7 @@ NODE_ROOT="$(find "$NODE_DIR" -maxdepth 1 -type d -name 'node-v*' | head -1)"
 [ -n "$NODE_ROOT" ] || die "node 包内未找到 node-v* 目录"
 
 # ---------------- 4. 合并 openharmony 组件 ----------------
-log "==> 4/9 合并 openharmony 组件到 sdk/default/openharmony"
+log "==> 4/10 合并 openharmony 组件到 sdk/default/openharmony"
 for c in ets js native previewer toolchains; do
     cz="$OHOS_DIR/ohos-sdk/ohos/${c}-ohos-x64-${OHOS_VERSION}-Beta.zip"
     [ -f "$cz" ] || die "缺少组件: $cz"
@@ -108,7 +108,7 @@ for c in ets js native previewer toolchains; do
 done
 
 # ---------------- 5. 替换 tool/node ----------------
-log "==> 5/9 替换 tool/node 为 arm64 node"
+log "==> 5/10 替换 tool/node 为 arm64 node"
 rm -rf "$TOOLS/tool/node"
 cp -a "$NODE_ROOT" "$TOOLS/tool/node"
 
@@ -156,7 +156,7 @@ print("      patched:", p)
 PY
 }
 
-log "==> 6/9 hvigor 设备 bug 补丁"
+log "==> 6/10 hvigor 设备 bug 补丁"
 patch_areIdentical "$TOOLS/hvigor/hvigor/src/common/util/path-util.js"
 patch_getArkVersion "$TOOLS/hvigor/hvigor-ohos-plugin/src/sdk/impl/ets-ark-component.js"
 patch_worker "$TOOLS/hvigor/hvigor-ohos-plugin/src/tasks/abstract-build-native.js"
@@ -164,7 +164,7 @@ patch_worker "$TOOLS/hvigor/hvigor-ohos-plugin/src/tasks/abstract-build-native.j
 # ---------------- 7. BiSheng x86-64 工具替换 ----------------
 # hms BiSheng 的 bin 工具是 x86-64 glibc ELF (设备无法运行) 且无法签名;
 # 对每个在 openharmony llvm bin 中存在同名 aarch64 工具者, 替换为相对符号链接。
-log "==> 7/9 BiSheng x86-64 工具替换为 openharmony aarch64 符号链接"
+log "==> 7/10 BiSheng x86-64 工具替换为 openharmony aarch64 符号链接"
 BISHENG_BIN="$TOOLS/sdk/default/hms/native/BiSheng/bin"
 OH_LLVM_BIN="$TOOLS/sdk/default/openharmony/native/llvm/bin"
 n=0
@@ -182,22 +182,24 @@ for f in "$BISHENG_BIN"/*; do
 done
 log "    替换 $n 个工具 (预期 35 个)"
 
-# ---------------- 8. hms 图像库 stub ----------------
-log "==> 8/9 编译 hms 图像库 aarch64 stub"
-HMS_LIB="$TOOLS/sdk/default/hms/toolchains/lib"
-CLANG="$TOOLS/sdk/default/openharmony/native/llvm/bin/clang"
-[ -x "$CLANG" ] || die "clang 不可执行: $CLANG"
-bash "$STUB_DIR/build-stubs.sh" "$CLANG" "$HMS_LIB"
-
-# ---------------- 9. 批量签名 + 校验 ----------------
-log "==> 9/9 解除只读属性并批量签名 (ohos-sign-elf)"
+# ---------------- 8. 批量签名 ----------------
+log "==> 8/10 解除只读属性并批量签名 (ohos-sign-elf)"
 # cppaudit/hpaudit 等从 zip 解出为只读, 签名需要写权限
 chmod -R u+w "$TOOLS"
 # 跳过符号链接; x86-64 / 已签名 / 静态库等失败项仅记录不中止 (退出码恒为 0)
 "$OHOS_SIGN_ELF" "$TOOLS" >> "$LOG" 2>&1 || true
 log "    签名完成 (失败项见日志: x86-64 / 已签名属预期)"
 
-log "==> 校验: ELF 完整性与签名覆盖"
+# ---------------- 9. hms 图像库 stub ----------------
+log "==> 9/10 编译 hms 图像库 aarch64 stub"
+HMS_LIB="$TOOLS/sdk/default/hms/toolchains/lib"
+CLANG="$TOOLS/sdk/default/openharmony/native/llvm/bin/clang"
+[ -x "$CLANG" ] || die "clang 不可执行: $CLANG"
+bash "$STUB_DIR/build-stubs.sh" "$CLANG" "$HMS_LIB"
+"$OHOS_SIGN_ELF" "$HMS_LIB" >> "$LOG" 2>&1 || true
+
+# ---------------- 10. 校验 ----------------
+log "==> 10/10 校验 ELF 完整性与签名覆盖"
 python3 - "$TOOLS" <<'PY' | tee -a "$LOG"
 import struct, os, sys
 root = sys.argv[1]
