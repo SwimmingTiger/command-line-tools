@@ -61,7 +61,7 @@ OHOS_VERSION=""   # 在步骤 2 中从组件 zip 文件名自动探测
 STUB_DIR="$SCRIPT_DIR/stubs"
 LOG="${LOG:-$BUILD_DIR/build.log}"
 
-# binary-sign-tool / llvm-objcopy / ohos-sign-elf 所在目录
+# llvm-objcopy / ohos-sign-elf 所在目录
 export PATH="/storage/Users/currentUser/.harmonybrew/bin:/storage/Users/currentUser/.local/bin:$PATH"
 OHOS_SIGN_ELF="${OHOS_SIGN_ELF:-$SCRIPT_DIR/ohos-sign-elf.py}"
 
@@ -211,9 +211,30 @@ open(p, "w", encoding="utf-8").write(s.replace(old, new))
 print("      patched:", p)
 PY
 }
+# 6b. isLinux: openharmony node 的 os.type() 返回 "HarmonyOS" (商业版) 而非 "Linux",
+#     导致 hvigor 的 isLinux() 为 false, 平台判断落到 macOS 分支
+#     (如加载 libimage_transcoder_shared.dylib 而非 .so, 报 path invalid)。
+#     同时匹配 os.platform()==="openharmony" (node 构建时定死, 覆盖所有设备,
+#     包括将来内核改名的定制版)。
+patch_isLinux() {
+    python3 - "$1" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+old = 'function isLinux(){return"Linux"===os_1.default.type()}'
+new = ('function isLinux(){return"Linux"===os_1.default.type()'
+       '||"HarmonyOS"===os_1.default.type()'
+       '||"openharmony"===os_1.default.platform()}')
+assert old in s, f"system-util.js 未找到 isLinux: {p}"
+open(p, "w", encoding="utf-8").write(s.replace(old, new))
+print("      patched:", p)
+PY
+}
 
-log "==> 6/11 hvigor 设备 bug 补丁 (areIdentical)"
+log "==> 6/11 hvigor 设备 bug 补丁 (areIdentical / isLinux)"
 patch_areIdentical "$TOOLS/hvigor/hvigor/src/common/util/path-util.js"
+patch_isLinux "$TOOLS/hvigor/hvigor/node_modules/@ohos/hvigor-common/src/util/system-util.js"
+patch_isLinux "$TOOLS/hvigor/hvigor-ohos-plugin/node_modules/@ohos/hvigor-common/src/util/system-util.js"
 
 # ---------------- 7. BiSheng x86-64 工具替换 ----------------
 # hms BiSheng 的 bin 工具是 x86-64 glibc ELF (设备无法运行) 且无法签名;
