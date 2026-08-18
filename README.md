@@ -27,9 +27,11 @@ command-line-tools 的全部材料：主脚本、批量签名/去权限脚本、
 ### 环境要求
 
 - `python3`、`unzip`、`tar`、`md5sum`、`curl`；
-- 签名工具 `binary-sign-tool`、`llvm-objcopy`（脚本会在 `PATH` 前追加
-  harmonybrew 与 `~/.local/bin`，请按实际环境准备）；
+- `llvm-objcopy`（仅 `--resign` 时用于剥离旧 `.codesign` 段；脚本会在 `PATH`
+  前追加 harmonybrew 与 `~/.local/bin`，请按实际环境准备）；
 - 若批量签名脚本不在本目录，可用 `OHOS_SIGN_ELF` 环境变量指定。
+
+> 签名由仓库内 `self-sign.py`（纯 Python）完成，**不需要 binary-sign-tool**。
 
 ### 使用步骤
 

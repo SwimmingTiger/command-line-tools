@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sign/unsign ELF files under a directory with binary-sign-tool."""
+"""Sign/unsign ELF files under a directory with self-sign.py."""
 
 import argparse
 import concurrent.futures
@@ -10,7 +10,6 @@ import threading
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-BINARY_SIGN_TOOL = "binary-sign-tool"
 CUSTOM_SIGN_TOOL = os.path.join(script_dir, "self-sign.py")
 LLVM_OBJCOPY = "llvm-objcopy"
 MAX_WORKERS = min(os.cpu_count() or 1, 8)
@@ -84,13 +83,6 @@ def unsign_elf(filepath: str) -> None:
 
 
 def sign_elf(filepath: str) -> None:
-    #cmd = [
-    #    BINARY_SIGN_TOOL,
-    #    "sign",
-    #    "-inFile", filepath,
-    #    "-outFile", filepath,
-    #    "-selfSign", "1",
-    #]
     cmd = [ CUSTOM_SIGN_TOOL, filepath ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -150,7 +142,7 @@ def walk_and_submit(path: str, sign_executor: concurrent.futures.ThreadPoolExecu
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Sign or unsign ELF files using binary-sign-tool."
+        description="Sign or unsign ELF files using self-sign.py."
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
